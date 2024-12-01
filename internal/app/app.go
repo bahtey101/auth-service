@@ -46,7 +46,7 @@ func Run(cfg *config.Config) error {
 	}
 
 	go func() {
-		logrus.Infof("Starting listening grpc server at %s", cfg.Port)
+		logrus.Infof("Starting listening http server at %s", cfg.Port)
 
 		if err := s.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logrus.Fatalf("error service http server %v", err)

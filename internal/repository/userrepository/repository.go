@@ -39,7 +39,7 @@ func (tr *UserRepository) Create(ctx context.Context, userID uuid.UUID, email st
 }
 
 func (tr *UserRepository) GetByID(ctx context.Context, userID uuid.UUID) (string, error) {
-	var refreshToken string
+	var email []byte
 
 	const sql = `
 	select email
@@ -52,12 +52,12 @@ func (tr *UserRepository) GetByID(ctx context.Context, userID uuid.UUID) (string
 		sql,
 		userID,
 	).Scan(
-		&userID,
+		&email,
 	); err != nil {
-		return refreshToken, err
+		return "", err
 	}
 
-	return refreshToken, nil
+	return string(email), nil
 }
 
 func (tr *UserRepository) Delete(ctx context.Context, userID uuid.UUID) error {

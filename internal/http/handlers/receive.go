@@ -5,10 +5,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/sirupsen/logrus"
 )
 
 func (h *Handler) Receive(ctx *gin.Context) {
-	userID, err := uuid.FromBytes([]byte(ctx.Param("id")))
+	userID, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
 		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
 			"error": "invalid user id",
@@ -17,6 +18,8 @@ func (h *Handler) Receive(ctx *gin.Context) {
 	}
 
 	userIP := ctx.ClientIP()
+
+	logrus.Info("Receice")
 
 	accessToken, refreshToken, err := h.service.Receive(
 		ctx.Request.Context(),

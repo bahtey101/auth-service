@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/sirupsen/logrus"
 
 	"auth-service/internal/model/token"
 	"auth-service/tools"
@@ -16,6 +17,7 @@ func (s *AuthService) Receive(
 ) (token.Token, token.Token, error) {
 	// Логика проверки пользователя
 	if _, err := s.userRepository.GetByID(ctx, userID); err != nil {
+		logrus.Errorf("failed to find user %v", err)
 		return token.Token{}, token.Token{}, err
 	}
 
@@ -44,6 +46,7 @@ func (s *AuthService) Receive(
 	); err != nil {
 		return token.Token{}, token.Token{}, err
 	}
+	logrus.Printf("rtolen len: %d", len(refreshToken.Value()))
 
 	return accessToken, refreshToken, nil
 }

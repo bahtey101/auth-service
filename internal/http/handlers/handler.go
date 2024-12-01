@@ -23,8 +23,8 @@ func (h *Handler) InitRoutes() *gin.Engine {
 
 	api := router.Group("/api")
 	{
-		api.GET("/receive/:id")
-		api.GET("/refresh")
+		api.GET("/receive/:id", h.Receive)
+		api.GET("/refresh", h.Refresh)
 	}
 
 	return router
