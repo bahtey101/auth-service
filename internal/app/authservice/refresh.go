@@ -74,21 +74,21 @@ func (s *AuthService) Refresh(
 			return token.Token{}, err
 		}
 	} else {
-		// userEmail, err := s.userRepository.GetByID(
-		// 	ctx,
-		// 	rtUserID,
-		// )
-		// if err != nil {
-		// 	logrus.Error("failed to find user email in users")
-		// }
+		userEmail, err := s.userRepository.GetByID(
+			ctx,
+			userID,
+		)
+		if err != nil {
+			logrus.Error("failed to find user email in users")
+		}
 
-		// err = s.emailSender(
-		// 	userEmail,
-		// 	fmt.Sprintf("[WARNING] Login from different IP\n Someone logged into your account from IP: %s", userIP),
-		// )
-		// if err != nil {
-		// 	logrus.Errorf("failed to send email to %s", userEmail)
-		// }
+		err = s.emailSender(
+			userEmail,
+			fmt.Sprintf("[WARNING] Login from different IP\n Someone logged into your account from IP: %s", userIP),
+		)
+		if err != nil {
+			logrus.Errorf("failed to send email to %s", userEmail)
+		}
 
 		if err = s.tokenRepository.Create(
 			ctx,
