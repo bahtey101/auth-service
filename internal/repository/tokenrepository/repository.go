@@ -2,6 +2,7 @@ package tokenrepository
 
 import (
 	"context"
+	"time"
 
 	"auth-service/pkg/dbstore"
 	"auth-service/tools"
@@ -45,15 +46,13 @@ func (tr *TokenRepository) Update(ctx context.Context, userID uuid.UUID, userIP,
 	const sql = `
 	update tokens
 	set token = $1
-	where user_id = $2
-	and user_ip = $3;
+	where user_ip = $2;
 	`
 
 	if _, err := tr.store.Exec(
 		ctx,
 		sql,
 		tools.Hash(refreshToken),
-		userID,
 		userIP,
 	); err != nil {
 		return err
@@ -62,17 +61,15 @@ func (tr *TokenRepository) Update(ctx context.Context, userID uuid.UUID, userIP,
 	return nil
 }
 
-func (tr *TokenRepository) Delete(ctx context.Context, userID uuid.UUID, userIP string) error {
+func (tr *TokenRepository) Delete(ctx context.Context, userIP string) error {
 	const sql = `
 	delete from tokens
-	where user_id = $1
-	and user_ip = $2;
+	where user_ip = $1;
 	`
 
 	if _, err := tr.store.Exec(
 		ctx,
 		sql,
-		userID,
 		userIP,
 	); err != nil {
 		return err
@@ -81,26 +78,33 @@ func (tr *TokenRepository) Delete(ctx context.Context, userID uuid.UUID, userIP 
 	return nil
 }
 
-func (tr *TokenRepository) Get(ctx context.Context, userID uuid.UUID, userIP string) (string, error) {
-	var refreshToken string
+func (tr *TokenRepository) GetByIP(ctx context.Context, userIP string) (uuid.UUID, string, time.Time, error) {
+	var (
+		userID       uuid.UUID
+		refreshToken string
+		createdAt    time.Time
+	)
 
 	const sql = `
-	select token
+	select 
+		user_id,
+		token,
+		created_at
 	from tokens
-	where user_id = $1
-	and user_ip = $2;
+	where user_ip = $1;
 	`
 
 	if err := tr.store.QueryRow(
 		ctx,
 		sql,
-		userID,
 		userIP,
 	).Scan(
 		&userID,
+		&refreshToken,
+		&createdAt,
 	); err != nil {
-		return refreshToken, err
+		return userID, refreshToken, createdAt, err
 	}
 
-	return refreshToken, nil
+	return userID, refreshToken, createdAt, nil
 }

@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"auth-service/internal/model/token"
-	"auth-service/tools"
 
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
@@ -22,102 +21,88 @@ func (s *AuthService) Refresh(
 	userIP string,
 	accessToken string,
 	refreshToken string,
-) (token.Token, token.Token, error) {
-	// Парсим данные из токенов
-	accessTokenClaims, err := s.tokenParser(accessToken)
+) (token.Token, error) {
+	rtUserIP, err := s.refreshTokenParser(refreshToken)
 	if err != nil {
-		return token.Token{}, token.Token{}, err
+		return token.Token{}, err
 	}
 
-	refreshTokenClaims, err := s.tokenParser(refreshToken)
-	if err != nil || !time.Unix(refreshTokenClaims.ExpiresAt, 0).After(time.Now()) {
-		return token.Token{}, token.Token{}, err
-	}
-
-	// Сравниваем SessionID двух токенов
-	if accessTokenClaims.SessionID != refreshTokenClaims.SessionID {
-		return token.Token{}, token.Token{}, fmt.Errorf("different session id")
-	}
-
-	// Получаем RefreshToken из БД
-	hashedResfreshToken, err := s.tokenRepository.Get(
+	userID, hashedResfreshToken, createdAt, err := s.tokenRepository.GetByIP(
 		ctx,
-		refreshTokenClaims.UserID,
-		refreshTokenClaims.UserIP,
+		rtUserIP,
 	)
 	if err != nil {
-		return token.Token{}, token.Token{}, err
+		return token.Token{}, err
 	}
 
-	// Сравниваем полученный токен с нашим
+	if time.Since(createdAt).Minutes() >= float64(s.expRefrashToken) {
+		err := s.tokenRepository.Delete(
+			ctx,
+			rtUserIP,
+		)
+		if err != nil {
+			return token.Token{}, err
+		}
+
+		return token.Token{}, fmt.Errorf("refresh token is expired")
+	}
+
 	if err = bcrypt.CompareHashAndPassword(
 		[]byte(hashedResfreshToken),
 		[]byte(refreshToken),
 	); err != nil {
-		return token.Token{}, token.Token{}, err
+		return token.Token{}, err
 	}
 
-	// Создаём пару новых токенов
-	newSessionID, err := tools.GenerateSessionID()
+	newAccessToken, err := s.accessTokenBuilder(userIP)
 	if err != nil {
-		return token.Token{}, token.Token{}, err
+		return token.Token{}, err
 	}
 
-	newAccessToken, err := s.accessTokenBuilder(
-		refreshTokenClaims.UserID,
-		userIP,
-		newSessionID,
-	)
+	newRefreshToken, err := s.refreshTokenBuilder(userIP)
 	if err != nil {
-		return token.Token{}, token.Token{}, err
+		return token.Token{}, err
 	}
 
-	newRefreshToken, err := s.refreshTokenBuilder(
-		refreshTokenClaims.UserID,
-		userIP,
-		newSessionID,
-	)
-	if err != nil {
-		return token.Token{}, token.Token{}, err
-	}
-
-	// Проверяем IP адрес
-	if userIP == refreshTokenClaims.UserIP {
+	if userIP == rtUserIP {
 		if err = s.tokenRepository.Update(
 			ctx,
-			refreshTokenClaims.UserID,
+			userID,
 			userIP,
 			newRefreshToken.Value(),
 		); err != nil {
-			return token.Token{}, token.Token{}, err
+			return token.Token{}, err
 		}
 	} else {
-		// Отправляем email warning
-		userEmail, err := s.userRepository.GetByID(
-			ctx,
-			refreshTokenClaims.UserID,
-		)
-		if err != nil {
-			logrus.Error("failed to find user email in users")
-		}
+		// userEmail, err := s.userRepository.GetByID(
+		// 	ctx,
+		// 	rtUserID,
+		// )
+		// if err != nil {
+		// 	logrus.Error("failed to find user email in users")
+		// }
 
-		err = s.emailSender(
-			userEmail,
-			fmt.Sprintf("[WARNING] Login from different IP\n Someone logged into your account from IP: %s", userIP),
-		)
-		if err != nil {
-			logrus.Errorf("failed to send email to %s", userEmail)
-		}
+		// err = s.emailSender(
+		// 	userEmail,
+		// 	fmt.Sprintf("[WARNING] Login from different IP\n Someone logged into your account from IP: %s", userIP),
+		// )
+		// if err != nil {
+		// 	logrus.Errorf("failed to send email to %s", userEmail)
+		// }
 
 		if err = s.tokenRepository.Create(
 			ctx,
-			refreshTokenClaims.UserID,
+			userID,
 			userIP,
 			newRefreshToken.Value(),
 		); err != nil {
-			return token.Token{}, token.Token{}, err
+			logrus.Error("failed to create in db")
+			return token.Token{}, err
 		}
 	}
 
-	return newAccessToken, newRefreshToken, nil
+	return token.Token{
+		AccessToken:  newAccessToken,
+		RefreshToken: newRefreshToken,
+	}, err
 }

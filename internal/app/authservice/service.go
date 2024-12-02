@@ -6,14 +6,13 @@ import (
 	"auth-service/internal/repository/tokenrepository"
 	"auth-service/internal/repository/userrepository"
 	"auth-service/pkg/emailsender"
-
-	"github.com/golang-jwt/jwt"
 )
 
 type AuthService struct {
-	accessTokenBuilder  token.TokenBuilder
-	refreshTokenBuilder token.TokenBuilder
-	tokenParser         token.TokenParser
+	accessTokenBuilder  token.AccessTokenBuilder
+	refreshTokenBuilder token.RefreshTokenBuilder
+	refreshTokenParser  token.RefreshTokenParser
+	expRefrashToken     uint32
 	userRepository      *userrepository.UserRepository
 	tokenRepository     *tokenrepository.TokenRepository
 
@@ -25,20 +24,17 @@ func NewAuthService(
 	userRepository *userrepository.UserRepository,
 	tokenRepository *tokenrepository.TokenRepository,
 ) *AuthService {
-	accessTokenBuilder := token.NewTokenBuilder(
+	accessTokenBuilder := token.NewAccessTokenBuilder(
 		cfg.ExpAccessToken,
 		[]byte(cfg.SecretKey),
-		jwt.SigningMethodHS512,
 	)
 
-	refreshTokenBuilder := token.NewTokenBuilder(
-		cfg.ExpRefreshToken,
-		[]byte(cfg.SecretKey),
-		jwt.SigningMethodHS256,
+	refreshTokenBuilder := token.NewRefreshTokenBuilder(
+		&cfg.PrivateKey.PublicKey,
 	)
 
-	tokenParser := token.NewtokenParser(
-		[]byte(cfg.SecretKey),
+	refreshTokenParser := token.NewRefreshTokenParser(
+		cfg.PrivateKey,
 	)
 
 	emailSender := emailsender.NewEmailSender(cfg)
@@ -46,7 +42,8 @@ func NewAuthService(
 	return &AuthService{
 		accessTokenBuilder:  accessTokenBuilder,
 		refreshTokenBuilder: refreshTokenBuilder,
-		tokenParser:         tokenParser,
+		refreshTokenParser:  refreshTokenParser,
+		expRefrashToken:     uint32(cfg.ExpRefreshToken),
 		userRepository:      userRepository,
 		tokenRepository:     tokenRepository,
 
